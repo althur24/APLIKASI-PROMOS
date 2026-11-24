@@ -19,6 +19,7 @@ export interface RequestFilters {
   search?: string;
   type?: RequestType;
   status?: RequestStatus;
+  statusIn?: RequestStatus[];
   projectId?: string;
   createdBy?: string;
   from?: string;
@@ -190,7 +191,11 @@ export async function listRequests(
     query = query.or(`title.ilike.${term},request_number.ilike.${term}`);
   }
   if (filters.type) query = query.eq("type", filters.type);
-  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.statusIn && filters.statusIn.length > 0) {
+    query = query.in("status", filters.statusIn);
+  } else if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
   if (filters.projectId) query = query.eq("project_id", filters.projectId);
   if (filters.createdBy) query = query.eq("created_by", filters.createdBy);
   if (filters.from) query = query.gte("submission_date", filters.from);
@@ -464,12 +469,11 @@ export async function getRecentRequests(limit = 5) {
 export async function getPendingRequests(limit = 5) {
   const result = await listRequests({
     page: 1,
-    pageSize: 50,
+    pageSize: limit,
     sort: "submission_date.asc",
+    statusIn: ["submitted", "partial"],
   });
-  return result.rows
-    .filter((row) => row.status === "submitted" || row.status === "partial")
-    .slice(0, limit);
+  return result.rows;
 }
 
 export async function getCategoryBreakdown() {

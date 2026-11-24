@@ -10,12 +10,12 @@ Dokumen produk lengkap ada di [`Plan.md`](./Plan.md).
 - Dashboard bersama: KPI, grafik bulanan, donut status, pengajuan terbaru, daftar belum cair.
 - Jenis pengajuan: **Pengajuan** dan **Reimbursement**.
 - Satu pengajuan berisi **banyak item** (nama, kategori, nominal); total otomatis.
-- Master data **Proyek** (dikelola di Pengaturan) untuk pengajuan & filter.
+- Master data **Proyek** (wajib dipilih; bisa dibuat cepat dari form, dikelola di Pengaturan).
 - Pencairan **per item** dan realisasi **per item** (upload foto realisasi).
 - Halaman **Proses Pencairan** & **Proses Realisasi** sebagai antrian item.
-- Reimbursement: upload foto struk per item, tanpa tahap realisasi.
+- Reimbursement: **wajib** upload foto struk per item, tanpa tahap realisasi.
 - CRUD pengajuan (semua user), nomor otomatis `PR-YYYY-0001`, soft delete.
-- Status item: Belum Cair → Sudah Cair → Sudah Realisasi; status pengajuan diturunkan otomatis.
+- Status item: Belum Cair → Sudah Cair → Sudah Realisasi; status pengajuan diturunkan otomatis (Belum Cair / Sebagian Cair / Sudah Cair / Sudah Realisasi).
 - Lampiran (umum/struk/realisasi) via Supabase Storage, activity log per pengajuan.
 - **Riwayat Aktivitas**: halaman audit global (siapa mengubah apa) dengan detail perubahan field-level (nilai lama → baru) + widget di dashboard.
 - Pencarian, filter, sorting, pagination.

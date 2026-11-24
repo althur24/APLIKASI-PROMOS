@@ -1,4 +1,4 @@
--- Promotion Tracker - full setup (schema + items/projects + functions + RLS + storage + grants + hardening + history + seed)
+-- Promotion Tracker - full setup
 
 -- ===== supabase/migrations/20261124090000_init_schema.sql =====
 create extension if not exists pgcrypto;
@@ -650,6 +650,12 @@ begin
     end;
   end if;
 end $$;
+
+
+-- ===== supabase/migrations/20261124090800_seed_default_project.sql =====
+insert into public.projects (name)
+select 'Umum'
+where not exists (select 1 from public.projects);
 
 
 -- ===== supabase/seed.sql =====

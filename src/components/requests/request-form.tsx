@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Controller,
@@ -13,14 +14,25 @@ import {
 } from "react-hook-form";
 import { toast } from "sonner";
 
+import { createProject } from "@/actions/projects";
 import { createRequest, updateRequest } from "@/actions/requests";
 import { StatusBadge } from "@/components/requests/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useServerAction } from "@/hooks/use-server-action";
 import { formatCurrency, formatNumber, parseCurrencyInput } from "@/lib/format";
 import {
   requestFormSchema,
@@ -53,6 +65,56 @@ function itemsToForm(items: ExpenseRequestItem[]) {
     category_id: item.category_id ?? "",
     amount: Number(item.amount),
   }));
+}
+
+function QuickProjectDialog() {
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const { submit, pending, state } = useServerAction(createProject, () => {
+    setOpen(false);
+    router.refresh();
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          + Proyek baru
+        </button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Proyek Baru</DialogTitle>
+          <DialogDescription>
+            Tambahkan proyek, lalu pilih pada daftar proyek.
+          </DialogDescription>
+        </DialogHeader>
+        <form action={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="quick-project">Nama Proyek</Label>
+            <Input id="quick-project" name="name" required />
+            {state?.fieldErrors?.name ? (
+              <p className="text-xs text-destructive">
+                {state.fieldErrors.name[0]}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function RequestForm({
@@ -181,9 +243,12 @@ export function RequestForm({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="project_id">
-                Proyek <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="project_id">
+                  Proyek <span className="text-destructive">*</span>
+                </Label>
+                <QuickProjectDialog />
+              </div>
               <Select
                 id="project_id"
                 {...form.register("project_id")}

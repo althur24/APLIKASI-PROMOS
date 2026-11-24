@@ -128,6 +128,30 @@ export async function createRequest(
     };
   }
 
+  const itemFiles = parsed.data.items.map((_, index) =>
+    formData
+      .getAll(`receipt_${index}`)
+      .filter((file): file is File => file instanceof File && file.size > 0),
+  );
+
+  if (parsed.data.type === "reimbursement") {
+    for (let index = 0; index < itemFiles.length; index += 1) {
+      const files = itemFiles[index];
+      if (files.length === 0) {
+        return {
+          error: `Struk wajib diunggah untuk item "${parsed.data.items[index].name}".`,
+        };
+      }
+      const invalid = validateFiles(files);
+      if (invalid) return invalid;
+    }
+  } else {
+    for (const files of itemFiles) {
+      const invalid = validateFiles(files);
+      if (invalid) return invalid;
+    }
+  }
+
   const supabase = await createClient();
   const { data: request, error } = await supabase
     .from("expense_requests")
@@ -160,24 +184,23 @@ export async function createRequest(
     .select("id, name, amount, sort_order");
 
   if (itemsError || !insertedItems) {
+    await supabase.from("expense_requests").delete().eq("id", request.id);
     return { error: itemsError?.message ?? "Gagal menyimpan item." };
   }
 
   if (parsed.data.type === "reimbursement") {
     for (const item of insertedItems) {
-      const files = formData
-        .getAll(`receipt_${item.sort_order}`)
-        .filter((file): file is File => file instanceof File && file.size > 0);
-      const invalid = validateFiles(files);
-      if (invalid) return invalid;
-      if (files.length > 0) {
-        const uploadError = await uploadFiles(
-          request.id,
-          item.id,
-          "receipt",
-          files,
-        );
-        if (uploadError) return { error: uploadError };
+      const files = itemFiles[item.sort_order] ?? [];
+      if (files.length === 0) continue;
+      const uploadError = await uploadFiles(
+        request.id,
+        item.id,
+        "receipt",
+        files,
+      );
+      if (uploadError) {
+        await supabase.from("expense_requests").delete().eq("id", request.id);
+        return { error: uploadError };
       }
     }
   }

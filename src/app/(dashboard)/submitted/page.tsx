@@ -8,6 +8,7 @@ import {
   listRequests,
 } from "@/lib/data/requests";
 import { parseRequestFilters, type SearchParamsInput } from "@/lib/filters";
+import type { RequestStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +22,15 @@ export default async function SubmittedPage({
   searchParams: Promise<SearchParamsInput>;
 }) {
   const params = await searchParams;
-  const filters = {
-    ...parseRequestFilters(params, { status: "submitted" }),
-    status: "submitted" as const,
-  };
+  const parsed = parseRequestFilters(params);
+
+  const filters = parsed.status
+    ? { ...parsed, status: parsed.status as RequestStatus }
+    : {
+        ...parsed,
+        status: undefined,
+        statusIn: ["submitted", "partial"] as RequestStatus[],
+      };
 
   const [data, projects, profiles] = await Promise.all([
     listRequests(filters),
