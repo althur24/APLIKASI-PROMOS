@@ -1,0 +1,56 @@
+import type { Metadata } from "next";
+import { Plus } from "lucide-react";
+import Link from "next/link";
+
+import { PageHeader } from "@/components/shared/page-header";
+import { RequestsSection } from "@/components/requests/requests-section";
+import { Button } from "@/components/ui/button";
+import {
+  getCategories,
+  getProfiles,
+  listRequests,
+} from "@/lib/data/requests";
+import { parseRequestFilters, type SearchParamsInput } from "@/lib/filters";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Semua Pengajuan - Promotion Tracker",
+};
+
+export default async function RequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParamsInput>;
+}) {
+  const params = await searchParams;
+  const filters = parseRequestFilters(params);
+
+  const [data, categories, profiles] = await Promise.all([
+    listRequests(filters),
+    getCategories(),
+    getProfiles(),
+  ]);
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Semua Pengajuan"
+        description="Seluruh pengajuan dana promosi dari semua anggota tim."
+        action={
+          <Button asChild>
+            <Link href="/requests/new">
+              <Plus className="size-4" />
+              Tambah Pengajuan
+            </Link>
+          </Button>
+        }
+      />
+      <RequestsSection
+        data={data}
+        categories={categories}
+        profiles={profiles}
+      />
+    </div>
+  );
+}
