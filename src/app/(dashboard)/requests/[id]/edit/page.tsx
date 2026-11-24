@@ -8,7 +8,11 @@ import { RequestForm } from "@/components/requests/request-form";
 import { StatusBadge } from "@/components/requests/status-badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/dal";
-import { getCategories, getRequestDetail } from "@/lib/data/requests";
+import {
+  getCategories,
+  getProjects,
+  getRequestDetail,
+} from "@/lib/data/requests";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +27,17 @@ export default async function EditRequestPage({
 }) {
   await requireUser();
   const { id } = await params;
-  const [detail, categories] = await Promise.all([
+  const [detail, categories, projects] = await Promise.all([
     getRequestDetail(id),
     getCategories(),
+    getProjects(),
   ]);
 
   if (!detail) notFound();
+
+  const itemsLocked =
+    detail.items.some((item) => item.status !== "submitted") ||
+    detail.attachments.length > 0;
 
   return (
     <div className="space-y-5">
@@ -48,7 +57,10 @@ export default async function EditRequestPage({
       <RequestForm
         mode="edit"
         categories={categories}
+        projects={projects}
         request={detail.request}
+        items={detail.items}
+        itemsLocked={itemsLocked}
       />
     </div>
   );

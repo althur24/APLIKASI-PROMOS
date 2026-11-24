@@ -72,6 +72,14 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: clip;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
 }
 
 body {

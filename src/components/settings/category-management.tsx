@@ -2,7 +2,7 @@
 
 import { Loader2, Pencil, Plus, Power } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import {
   createCategory,
@@ -92,6 +92,7 @@ function CreateCategoryDialog() {
 }
 
 function EditCategoryDialog({ category }: { category: Category }) {
+  const uid = useId();
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { submit, pending, state } = useServerAction(updateCategory, () => {
@@ -114,9 +115,9 @@ function EditCategoryDialog({ category }: { category: Category }) {
         <form action={submit} className="space-y-4">
           <input type="hidden" name="id" value={category.id} />
           <div className="space-y-1.5">
-            <Label htmlFor={`name_${category.id}`}>Nama Kategori</Label>
+            <Label htmlFor={`name_${uid}`}>Nama Kategori</Label>
             <Input
-              id={`name_${category.id}`}
+              id={`name_${uid}`}
               name="name"
               defaultValue={category.name}
               required
@@ -146,17 +147,44 @@ function EditCategoryDialog({ category }: { category: Category }) {
   );
 }
 
+function CategoryActions({ category }: { category: Category }) {
+  return (
+    <div className="flex items-center gap-1">
+      <EditCategoryDialog category={category} />
+      <form action={toggleCategoryActive}>
+        <input type="hidden" name="id" value={category.id} />
+        <input
+          type="hidden"
+          name="is_active"
+          value={category.is_active ? "false" : "true"}
+        />
+        <Button
+          type="submit"
+          variant="ghost"
+          size="iconSm"
+          aria-label={category.is_active ? "Nonaktifkan" : "Aktifkan"}
+          className={
+            category.is_active ? "text-destructive" : "text-success"
+          }
+        >
+          <Power className="size-4" />
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 export function CategoryManagement({ categories }: { categories: Category[] }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {categories.length} kategori
         </p>
         <CreateCategoryDialog />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="hidden overflow-hidden rounded-2xl border border-border bg-card md:block">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -179,31 +207,8 @@ export function CategoryManagement({ categories }: { categories: Category[] }) {
                   {formatDate(category.created_at)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <EditCategoryDialog category={category} />
-                    <form action={toggleCategoryActive}>
-                      <input type="hidden" name="id" value={category.id} />
-                      <input
-                        type="hidden"
-                        name="is_active"
-                        value={category.is_active ? "false" : "true"}
-                      />
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="iconSm"
-                        aria-label={
-                          category.is_active ? "Nonaktifkan" : "Aktifkan"
-                        }
-                        className={
-                          category.is_active
-                            ? "text-destructive"
-                            : "text-success"
-                        }
-                      >
-                        <Power className="size-4" />
-                      </Button>
-                    </form>
+                  <div className="flex items-center justify-end">
+                    <CategoryActions category={category} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -211,6 +216,31 @@ export function CategoryManagement({ categories }: { categories: Category[] }) {
           </TableBody>
         </Table>
       </div>
+
+      <div className="space-y-3 md:hidden">
+        {categories.map((category) => (
+          <div
+            key={category.id}
+            className="rounded-2xl border border-border bg-card p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 break-words text-sm font-medium text-foreground">
+                {category.name}
+              </p>
+              <Badge variant={category.is_active ? "paid" : "outline"}>
+                {category.is_active ? "Aktif" : "Nonaktif"}
+              </Badge>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+              <p className="text-xs text-muted-foreground">
+                Dibuat {formatDate(category.created_at)}
+              </p>
+              <CategoryActions category={category} />
+            </div>
+          </div>
+        ))}
+      </div>
+
       <p className="text-xs text-muted-foreground">
         Kategori yang sudah dipakai tidak dihapus permanen, cukup dinonaktifkan.
       </p>

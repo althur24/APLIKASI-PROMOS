@@ -5,37 +5,42 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { STATUS_LABELS, type ExpenseRequestWithRelations } from "@/types";
+import type { ReportItemRow } from "@/lib/data/requests";
+import { REQUEST_TYPE_LABELS } from "@/types";
 
 const HEADERS = [
   "Nomor",
-  "Nama Pengajuan",
+  "Pengajuan",
+  "Jenis",
+  "Proyek",
+  "Item",
   "Kategori",
   "Pengaju",
-  "Tanggal Pengajuan",
-  "Tanggal Pencairan",
+  "Tgl Pengajuan",
+  "Tgl Cair",
+  "Tgl Realisasi",
   "Status",
   "Nominal",
 ];
 
-function toMatrix(rows: ExpenseRequestWithRelations[]) {
+function toMatrix(rows: ReportItemRow[]) {
   return rows.map((row) => [
     row.request_number,
-    row.title,
-    row.category?.name ?? "-",
-    row.creator?.full_name ?? "-",
+    row.request_title,
+    REQUEST_TYPE_LABELS[row.type] ?? row.type,
+    row.project ?? "-",
+    row.item_name,
+    row.category ?? "-",
+    row.creator ?? "-",
     formatDate(row.submission_date),
     row.disbursement_date ? formatDate(row.disbursement_date) : "-",
-    STATUS_LABELS[row.status],
+    row.realized_date ? formatDate(row.realized_date) : "-",
+    row.status_label,
     Number(row.amount),
   ]);
 }
 
-export function ExportButtons({
-  rows,
-}: {
-  rows: ExpenseRequestWithRelations[];
-}) {
+export function ExportButtons({ rows }: { rows: ReportItemRow[] }) {
   const [busy, setBusy] = useState<"excel" | "pdf" | null>(null);
 
   async function exportExcel() {
@@ -44,22 +49,24 @@ export function ExportButtons({
       const XLSX = await import("xlsx");
       const data = rows.map((row) => ({
         Nomor: row.request_number,
-        "Nama Pengajuan": row.title,
-        Kategori: row.category?.name ?? "-",
-        Pengaju: row.creator?.full_name ?? "-",
-        "Tanggal Pengajuan": formatDate(row.submission_date),
-        "Tanggal Pencairan": row.disbursement_date
+        Pengajuan: row.request_title,
+        Jenis: REQUEST_TYPE_LABELS[row.type] ?? row.type,
+        Proyek: row.project ?? "-",
+        Item: row.item_name,
+        Kategori: row.category ?? "-",
+        Pengaju: row.creator ?? "-",
+        "Tgl Pengajuan": formatDate(row.submission_date),
+        "Tgl Cair": row.disbursement_date
           ? formatDate(row.disbursement_date)
           : "-",
-        Status: STATUS_LABELS[row.status],
+        "Tgl Realisasi": row.realized_date
+          ? formatDate(row.realized_date)
+          : "-",
+        Status: row.status_label,
         Nominal: Number(row.amount),
       }));
 
-      const worksheet = XLSX.utils.json_to_sheet(data, {
-        header: HEADERS.map((header) =>
-          header === "Nominal" ? "Nominal" : header,
-        ),
-      });
+      const worksheet = XLSX.utils.json_to_sheet(data, { header: HEADERS });
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
       XLSX.writeFile(
@@ -86,7 +93,7 @@ export function ExportButtons({
       doc.text(`Dibuat: ${formatDate(new Date())}`, 14, 22);
 
       const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
-      doc.text(`Jumlah pengajuan: ${rows.length}`, 14, 27);
+      doc.text(`Jumlah item: ${rows.length}`, 14, 27);
       doc.text(`Total nominal: ${formatCurrency(total)}`, 14, 32);
 
       autoTable(doc, {
@@ -94,12 +101,12 @@ export function ExportButtons({
         head: [HEADERS],
         body: toMatrix(rows).map((row) =>
           row.map((cell, index) =>
-            index === 7 ? formatCurrency(cell as number) : String(cell),
+            index === 11 ? formatCurrency(cell as number) : String(cell),
           ),
         ),
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [37, 99, 235], fontSize: 8 },
-        columnStyles: { 7: { halign: "right" } },
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [37, 99, 235], fontSize: 7 },
+        columnStyles: { 11: { halign: "right" } },
       });
 
       doc.save(`laporan-pengajuan-${new Date().toISOString().slice(0, 10)}.pdf`);

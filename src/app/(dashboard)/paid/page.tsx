@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/shared/page-header";
 import { RequestsSection } from "@/components/requests/requests-section";
 import {
-  getCategories,
   getProfiles,
+  getProjects,
   listRequests,
 } from "@/lib/data/requests";
 import { parseRequestFilters, type SearchParamsInput } from "@/lib/filters";
@@ -26,9 +26,9 @@ export default async function PaidPage({
     status: "paid" as const,
   };
 
-  const [data, categories, profiles] = await Promise.all([
+  const [data, projects, profiles] = await Promise.all([
     listRequests(filters),
-    getCategories(),
+    getProjects(),
     getProfiles(),
   ]);
 
@@ -40,7 +40,7 @@ export default async function PaidPage({
       />
       <RequestsSection
         data={data}
-        categories={categories}
+        projects={projects}
         profiles={profiles}
         showStatus={false}
         emptyHint="Belum ada pengajuan yang sudah cair pada filter ini."

@@ -6,8 +6,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { RequestsSection } from "@/components/requests/requests-section";
 import { Button } from "@/components/ui/button";
 import {
-  getCategories,
   getProfiles,
+  getProjects,
   listRequests,
 } from "@/lib/data/requests";
 import { parseRequestFilters, type SearchParamsInput } from "@/lib/filters";
@@ -26,9 +26,9 @@ export default async function RequestsPage({
   const params = await searchParams;
   const filters = parseRequestFilters(params);
 
-  const [data, categories, profiles] = await Promise.all([
+  const [data, projects, profiles] = await Promise.all([
     listRequests(filters),
-    getCategories(),
+    getProjects(),
     getProfiles(),
   ]);
 
@@ -48,7 +48,7 @@ export default async function RequestsPage({
       />
       <RequestsSection
         data={data}
-        categories={categories}
+        projects={projects}
         profiles={profiles}
       />
     </div>

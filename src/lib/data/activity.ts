@@ -107,6 +107,7 @@ export async function listActivity(
   const rows: ActivityRow[] = rawRows.map((row) => ({
     id: row.id,
     request_id: row.request_id,
+    item_id: row.item_id,
     actor_id: row.actor_id,
     action: row.action,
     description: row.description,

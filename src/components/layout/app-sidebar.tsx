@@ -64,7 +64,7 @@ export function AppSidebar({ role, onNavigate, onClose }: AppSidebarProps) {
 
           return (
             <div key={section.label} className="space-y-1">
-              <p className="px-3 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground/70">
+              <p className="px-3 pb-1 text-xs font-semibold tracking-wider text-muted-foreground/70">
                 {section.label}
               </p>
               {items.map((item) => {
@@ -102,7 +102,7 @@ export function AppSidebar({ role, onNavigate, onClose }: AppSidebarProps) {
       </nav>
 
       <div className="border-t border-border p-4">
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           Dashboard bersama untuk tim promosi. Semua data tampil untuk seluruh
           pengguna aktif.
         </p>

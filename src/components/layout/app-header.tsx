@@ -24,11 +24,11 @@ export function AppHeader({
   onMenuClick: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 flex min-h-16 items-center gap-3 border-b border-border bg-background/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-6 lg:px-8">
       <button
         type="button"
         onClick={onMenuClick}
-        className="rounded-lg p-2 text-muted-foreground hover:bg-secondary lg:hidden"
+        className="flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary lg:hidden"
         aria-label="Buka menu"
       >
         <Menu className="size-5" />
@@ -44,10 +44,10 @@ export function AppHeader({
       </div>
       <div className="flex-1 sm:hidden" />
 
-      <Button asChild size="sm" className="h-9">
+      <Button asChild size="sm" className="h-10 px-3 sm:h-9">
         <Link href="/requests/new">
           <Plus className="size-4" />
-          <span className="hidden xs:inline sm:inline">Tambah</span>
+          <span className="hidden sm:inline">Tambah</span>
         </Link>
       </Button>
 

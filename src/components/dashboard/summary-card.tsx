@@ -30,25 +30,27 @@ export function SummaryCard({
 }: SummaryCardProps) {
   const styles = toneStyles[tone];
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+    <Card className="p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-[13px] font-medium text-muted-foreground sm:text-sm">
+            {label}
+          </p>
+          <p className="break-words text-lg font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
             {value}
           </p>
         </div>
         <span
           className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-xl",
+            "flex size-9 shrink-0 items-center justify-center rounded-xl sm:size-10",
             styles.icon,
           )}
         >
-          <Icon className="size-5" />
+          <Icon className="size-4 sm:size-5" />
         </span>
       </div>
       {hint ? (
-        <p className="mt-3 text-xs text-muted-foreground">{hint}</p>
+        <p className="mt-2 text-xs text-muted-foreground sm:mt-3">{hint}</p>
       ) : null}
     </Card>
   );

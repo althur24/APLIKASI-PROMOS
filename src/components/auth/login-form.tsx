@@ -18,7 +18,7 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   return (
     <form
       action={action}
-      className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm"
+      className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"
     >
       {redirectTo ? (
         <input type="hidden" name="redirectTo" value={redirectTo} />

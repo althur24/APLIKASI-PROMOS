@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
-import { BadgeCheck, Clock, Coins, ListChecks } from "lucide-react";
+import { BadgeCheck, Banknote, Clock, Coins, ListChecks } from "lucide-react";
 
 import { ExportButtons } from "@/components/reports/export-buttons";
 import { SummaryCard } from "@/components/dashboard/summary-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RequestFilters } from "@/components/requests/request-filters";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -22,8 +17,8 @@ import {
 } from "@/components/ui/table";
 import { requireUser } from "@/lib/dal";
 import {
-  getCategories,
   getProfiles,
+  getProjects,
   getReportRows,
 } from "@/lib/data/requests";
 import { formatCurrency, formatNumber } from "@/lib/format";
@@ -44,9 +39,9 @@ export default async function ReportsPage({
   const params = await searchParams;
   const filters = parseRequestFilters(params);
 
-  const [{ rows }, categories, profiles] = await Promise.all([
+  const [{ rows }, projects, profiles] = await Promise.all([
     getReportRows(filters),
-    getCategories(),
+    getProjects(),
     getProfiles(),
   ]);
 
@@ -55,7 +50,10 @@ export default async function ReportsPage({
       const amount = Number(row.amount);
       acc.count += 1;
       acc.total += amount;
-      if (row.status === "paid") {
+      if (row.status === "realized") {
+        acc.realizedCount += 1;
+        acc.realized += amount;
+      } else if (row.status === "paid") {
         acc.paidCount += 1;
         acc.paid += amount;
       } else {
@@ -64,50 +62,53 @@ export default async function ReportsPage({
       }
       return acc;
     },
-    { count: 0, total: 0, pending: 0, paid: 0, pendingCount: 0, paidCount: 0 },
-  );
-
-  const byCategory = new Map<string, { count: number; amount: number }>();
-  const byPengaju = new Map<string, { count: number; amount: number }>();
-
-  rows.forEach((row) => {
-    const categoryName = row.category?.name ?? "Tanpa Kategori";
-    const pengajuName = row.creator?.full_name ?? "-";
-
-    const categoryEntry = byCategory.get(categoryName) ?? {
+    {
       count: 0,
-      amount: 0,
-    };
-    categoryEntry.count += 1;
-    categoryEntry.amount += Number(row.amount);
-    byCategory.set(categoryName, categoryEntry);
-
-    const pengajuEntry = byPengaju.get(pengajuName) ?? { count: 0, amount: 0 };
-    pengajuEntry.count += 1;
-    pengajuEntry.amount += Number(row.amount);
-    byPengaju.set(pengajuName, pengajuEntry);
-  });
-
-  const categoryRows = Array.from(byCategory.entries()).sort(
-    (a, b) => b[1].amount - a[1].amount,
+      total: 0,
+      pending: 0,
+      paid: 0,
+      realized: 0,
+      pendingCount: 0,
+      paidCount: 0,
+      realizedCount: 0,
+    },
   );
-  const pengajuRows = Array.from(byPengaju.entries()).sort(
-    (a, b) => b[1].amount - a[1].amount,
-  );
+
+  function recap(selector: (row: (typeof rows)[number]) => string) {
+    const map = new Map<string, { count: number; amount: number }>();
+    rows.forEach((row) => {
+      const key = selector(row) || "—";
+      const entry = map.get(key) ?? { count: 0, amount: 0 };
+      entry.count += 1;
+      entry.amount += Number(row.amount);
+      map.set(key, entry);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1].amount - a[1].amount);
+  }
+
+  const byProject = recap((row) => row.project ?? "Tanpa proyek");
+  const byCategory = recap((row) => row.category ?? "Tanpa kategori");
+  const byPengaju = recap((row) => row.creator ?? "-");
+
+  const recapTables = [
+    { title: "Rekap per Proyek", first: "Proyek", data: byProject },
+    { title: "Rekap per Kategori", first: "Kategori", data: byCategory },
+    { title: "Rekap per Pengaju", first: "Pengaju", data: byPengaju },
+  ];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Laporan"
-        description="Rekap pengajuan dana promosi berdasarkan filter yang aktif."
+        description="Rekap item pengajuan berdasarkan filter yang aktif."
         action={<ExportButtons rows={rows} />}
       />
 
-      <RequestFilters categories={categories} profiles={profiles} />
+      <RequestFilters projects={projects} profiles={profiles} hidePartial />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
         <SummaryCard
-          label="Jumlah Pengajuan"
+          label="Jumlah Item"
           value={formatNumber(summary.count)}
           icon={ListChecks}
           tone="primary"
@@ -120,16 +121,23 @@ export default async function ReportsPage({
         <SummaryCard
           label="Belum Cair"
           value={formatCurrency(summary.pending)}
-          hint={`${formatNumber(summary.pendingCount)} transaksi`}
+          hint={`${formatNumber(summary.pendingCount)} item`}
           icon={Clock}
           tone="warning"
         />
         <SummaryCard
           label="Sudah Cair"
           value={formatCurrency(summary.paid)}
-          hint={`${formatNumber(summary.paidCount)} transaksi`}
+          hint={`${formatNumber(summary.paidCount)} item`}
           icon={BadgeCheck}
           tone="success"
+        />
+        <SummaryCard
+          label="Sudah Realisasi"
+          value={formatCurrency(summary.realized)}
+          hint={`${formatNumber(summary.realizedCount)} item`}
+          icon={Banknote}
+          tone="primary"
         />
       </div>
 
@@ -137,77 +145,43 @@ export default async function ReportsPage({
         <EmptyState
           icon={ListChecks}
           title="Tidak ada data"
-          description="Ubah filter periode, kategori, status, atau pengaju untuk melihat data lain."
+          description="Ubah filter periode, jenis, proyek, status, atau pengaju."
         />
       ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Rekap per Kategori</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-5 sm:pl-6">Kategori</TableHead>
-                    <TableHead className="text-right">Transaksi</TableHead>
-                    <TableHead className="pr-5 text-right sm:pr-6">
-                      Nominal
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {categoryRows.map(([name, value]) => (
-                    <TableRow key={name}>
-                      <TableCell className="pl-5 font-medium sm:pl-6">
-                        {name}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatNumber(value.count)}
-                      </TableCell>
-                      <TableCell className="pr-5 text-right font-medium tabular-nums sm:pr-6">
-                        {formatCurrency(value.amount)}
-                      </TableCell>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {recapTables.map((table) => (
+            <Card key={table.title}>
+              <CardHeader>
+                <CardTitle>{table.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>{table.first}</TableHead>
+                      <TableHead className="text-right">Item</TableHead>
+                      <TableHead className="text-right">Nominal</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rekap per Pengaju</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-5 sm:pl-6">Pengaju</TableHead>
-                    <TableHead className="text-right">Transaksi</TableHead>
-                    <TableHead className="pr-5 text-right sm:pr-6">
-                      Nominal
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pengajuRows.map(([name, value]) => (
-                    <TableRow key={name}>
-                      <TableCell className="pl-5 font-medium sm:pl-6">
-                        {name}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatNumber(value.count)}
-                      </TableCell>
-                      <TableCell className="pr-5 text-right font-medium tabular-nums sm:pr-6">
-                        {formatCurrency(value.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {table.data.map(([name, value]) => (
+                      <TableRow key={name}>
+                        <TableCell className="break-words font-medium">
+                          {name}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(value.count)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          {formatCurrency(value.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>

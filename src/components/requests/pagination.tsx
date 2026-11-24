@@ -44,7 +44,7 @@ export function Pagination({
         <span className="font-medium text-foreground">{totalItems}</span>{" "}
         pengajuan
       </p>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-center gap-1">
         <Button
           variant="outline"
           size="iconSm"

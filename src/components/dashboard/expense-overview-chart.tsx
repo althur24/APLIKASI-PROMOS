@@ -22,22 +22,23 @@ function compact(value: number) {
 
 export function ExpenseOverviewChart({ data }: { data: MonthlyPoint[] }) {
   return (
-    <div className="h-[300px] w-full">
+    <div className="h-[240px] w-full sm:h-[300px]">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
           <XAxis
             dataKey="label"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "#64748b", fontSize: 12 }}
+            tick={{ fill: "#64748b", fontSize: 11 }}
+            interval="preserveStartEnd"
           />
           <YAxis
             axisLine={false}
             tickLine={false}
-            tick={{ fill: "#64748b", fontSize: 12 }}
+            tick={{ fill: "#64748b", fontSize: 11 }}
             tickFormatter={(value: number) => compact(value)}
-            width={56}
+            width={48}
           />
           <Tooltip
             cursor={{ fill: "rgba(148,163,184,0.12)" }}
@@ -58,14 +59,21 @@ export function ExpenseOverviewChart({ data }: { data: MonthlyPoint[] }) {
             name="Diajukan"
             fill="#2563eb"
             radius={[6, 6, 0, 0]}
-            maxBarSize={36}
+            maxBarSize={28}
           />
           <Bar
             dataKey="cair"
             name="Cair"
             fill="#16a36a"
             radius={[6, 6, 0, 0]}
-            maxBarSize={36}
+            maxBarSize={28}
+          />
+          <Bar
+            dataKey="realisasi"
+            name="Realisasi"
+            fill="#7c3aed"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={28}
           />
         </BarChart>
       </ResponsiveContainer>

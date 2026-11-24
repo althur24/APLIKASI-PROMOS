@@ -107,7 +107,7 @@ export function PendingRequests({
                       <p className="line-clamp-1 text-sm font-medium text-foreground">
                         {row.title}
                       </p>
-                      <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-[#a86414]">
+                      <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-[#a86414]">
                         {days} hari
                       </span>
                     </div>

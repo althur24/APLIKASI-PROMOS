@@ -18,7 +18,7 @@ export function ChangePasswordForm() {
   return (
     <form
       action={action}
-      className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-sm"
+      className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"
     >
       <div className="rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">
         Untuk keamanan, ganti password sementara Anda sebelum melanjutkan.

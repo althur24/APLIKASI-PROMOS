@@ -7,23 +7,29 @@ import { formatCurrency } from "@/lib/format";
 export function StatusDonutChart({
   pendingAmount,
   paidAmount,
+  realizedAmount,
   pendingCount,
   paidCount,
+  realizedCount,
 }: {
   pendingAmount: number;
   paidAmount: number;
+  realizedAmount: number;
   pendingCount: number;
   paidCount: number;
+  realizedCount: number;
 }) {
   const data = [
-    { name: "Belum Cair", value: pendingAmount, count: pendingCount, color: "#e99a32" },
-    { name: "Sudah Cair", value: paidAmount, count: paidCount, color: "#16a36a" },
+    { name: "Belum Cair", value: pendingAmount, color: "#e99a32" },
+    { name: "Sudah Cair", value: paidAmount, color: "#16a36a" },
+    { name: "Sudah Realisasi", value: realizedAmount, color: "#7c3aed" },
   ];
 
-  const isEmpty = pendingAmount === 0 && paidAmount === 0;
+  const isEmpty =
+    pendingAmount === 0 && paidAmount === 0 && realizedAmount === 0;
 
   return (
-    <div className="relative h-[220px] w-full">
+    <div className="relative h-[190px] w-full sm:h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -56,10 +62,10 @@ export function StatusDonutChart({
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-xs text-muted-foreground">Total</span>
-        <span className="text-lg font-semibold tabular-nums text-foreground">
-          {pendingCount + paidCount}
+        <span className="text-base font-semibold tabular-nums text-foreground sm:text-lg">
+          {pendingCount + paidCount + realizedCount}
         </span>
-        <span className="text-[11px] text-muted-foreground">pengajuan</span>
+        <span className="text-xs text-muted-foreground">item</span>
       </div>
     </div>
   );

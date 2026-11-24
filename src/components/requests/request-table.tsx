@@ -13,6 +13,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DeleteRequestButton } from "@/components/requests/delete-request-button";
 import { StatusBadge } from "@/components/requests/status-badge";
+import { TypeBadge } from "@/components/requests/type-badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,8 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import type { ExpenseRequestWithRelations } from "@/types";
 
 function SortHeader({
@@ -114,11 +114,9 @@ export function RequestTable({ rows }: { rows: ExpenseRequestWithRelations[] }) 
             <TableRow className="hover:bg-transparent">
               <SortHeader column="request_number">Nomor</SortHeader>
               <SortHeader column="title">Nama Pengajuan</SortHeader>
-              <TableHead>Kategori</TableHead>
-              <TableHead>Pengaju</TableHead>
-              <SortHeader column="submission_date">
-                Tgl Pengajuan
-              </SortHeader>
+              <TableHead>Jenis</TableHead>
+              <TableHead>Item</TableHead>
+              <SortHeader column="submission_date">Tgl Pengajuan</SortHeader>
               <SortHeader column="amount" className="text-right">
                 Nominal
               </SortHeader>
@@ -139,17 +137,15 @@ export function RequestTable({ rows }: { rows: ExpenseRequestWithRelations[] }) 
                   >
                     <span className="line-clamp-1">{row.title}</span>
                   </Link>
-                  {row.notes ? (
-                    <p className="line-clamp-1 text-xs text-muted-foreground">
-                      {row.notes}
-                    </p>
-                  ) : null}
+                  <p className="line-clamp-1 text-xs text-muted-foreground">
+                    {row.project?.name ?? "Tanpa proyek"}
+                  </p>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {row.category?.name ?? "-"}
+                <TableCell>
+                  <TypeBadge type={row.type} />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {row.creator?.full_name ?? "-"}
+                <TableCell className="text-sm tabular-nums text-muted-foreground">
+                  {row.item_count}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {formatDate(row.submission_date)}
@@ -198,6 +194,12 @@ export function RequestTable({ rows }: { rows: ExpenseRequestWithRelations[] }) 
               </div>
               <StatusBadge status={row.status} />
             </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <TypeBadge type={row.type} />
+              <span className="text-xs text-muted-foreground">
+                {row.project?.name ?? "Tanpa proyek"}
+              </span>
+            </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Nominal</p>
@@ -206,8 +208,10 @@ export function RequestTable({ rows }: { rows: ExpenseRequestWithRelations[] }) 
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Kategori</p>
-                <p className={cn("truncate")}>{row.category?.name ?? "-"}</p>
+                <p className="text-xs text-muted-foreground">Jumlah Item</p>
+                <p className="tabular-nums">
+                  {formatNumber(row.item_count)} item
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Pengaju</p>
@@ -218,14 +222,14 @@ export function RequestTable({ rows }: { rows: ExpenseRequestWithRelations[] }) 
                 <p>{formatDate(row.submission_date)}</p>
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <Button variant="outline" size="sm" asChild>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Button variant="outline" size="sm" asChild className="w-full">
                 <Link href={`/requests/${row.id}`}>
                   <Eye className="size-4" />
                   Detail
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="w-full">
                 <Link href={`/requests/${row.id}/edit`}>
                   <Pencil className="size-4" />
                   Edit
@@ -236,7 +240,7 @@ export function RequestTable({ rows }: { rows: ExpenseRequestWithRelations[] }) 
                 requestNumber={row.request_number}
                 label=""
                 variant="outline"
-                className="px-2"
+                className="w-full px-2"
               />
             </div>
           </div>

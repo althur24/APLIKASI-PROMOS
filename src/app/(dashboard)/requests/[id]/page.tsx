@@ -13,15 +13,11 @@ import { notFound } from "next/navigation";
 import { ActivityTimeline } from "@/components/requests/activity-timeline";
 import { AttachmentManager } from "@/components/requests/attachment-manager";
 import { DeleteRequestButton } from "@/components/requests/delete-request-button";
+import { RequestItems } from "@/components/requests/request-items";
 import { StatusBadge } from "@/components/requests/status-badge";
-import { UpdateStatusDialog } from "@/components/requests/update-status-dialog";
+import { TypeBadge } from "@/components/requests/type-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/dal";
 import { getRequestDetail } from "@/lib/data/requests";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -43,29 +39,33 @@ export default async function RequestDetailPage({
 
   if (!detail) notFound();
 
-  const { request, attachments, logs } = detail;
+  const { request, items, attachments, logs } = detail;
+  const generalAttachments = attachments.filter(
+    (attachment) => attachment.purpose === "general",
+  );
 
   const meta = [
-    {
-      label: "Kategori",
-      value: request.category?.name ?? "-",
-      icon: FolderKanban,
-    },
-    {
-      label: "Pengaju",
-      value: request.creator?.full_name ?? "-",
-      icon: UserRound,
-    },
+    { label: "Proyek", value: request.project?.name ?? "-", icon: FolderKanban },
+    { label: "Pengaju", value: request.creator?.full_name ?? "-", icon: UserRound },
     {
       label: "Tanggal Pengajuan",
       value: formatDate(request.submission_date),
       icon: CalendarDays,
     },
     {
-      label: "Tanggal Pencairan",
-      value: request.disbursement_date
-        ? formatDate(request.disbursement_date)
-        : "Belum cair",
+      label: "Tgl Cair / Realisasi",
+      value:
+        [...items]
+          .filter((item) => item.disbursement_date || item.realized_date)
+          .slice(0, 1)
+          .map((item) =>
+            [
+              item.disbursement_date ? formatDate(item.disbursement_date) : null,
+              item.realized_date ? formatDate(item.realized_date) : null,
+            ]
+              .filter(Boolean)
+              .join(" / "),
+          )[0] ?? "Belum ada",
       icon: CalendarCheck2,
     },
   ];
@@ -79,35 +79,33 @@ export default async function RequestDetailPage({
         </Link>
       </Button>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground">
               {request.request_number}
             </span>
+            <TypeBadge type={request.type} />
             <StatusBadge status={request.status} />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             {request.title}
           </h1>
           <div className="flex items-center gap-2 text-foreground">
             <Wallet className="size-5 text-primary" />
-            <span className="text-2xl font-semibold tabular-nums">
+            <span className="break-words text-xl font-semibold tabular-nums sm:text-2xl">
               {formatCurrency(request.amount)}
             </span>
           </div>
+          <p className="text-xs text-muted-foreground">
+            {request.item_count} item
+          </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" asChild>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
             <Link href={`/requests/${request.id}/edit`}>Edit</Link>
           </Button>
-          <UpdateStatusDialog
-            requestId={request.id}
-            status={request.status}
-            disbursementDate={request.disbursement_date}
-            notes={request.notes}
-          />
           <DeleteRequestButton
             id={request.id}
             requestNumber={request.request_number}
@@ -117,6 +115,14 @@ export default async function RequestDetailPage({
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
+          <RequestItems
+            requestId={request.id}
+            requestType={request.type}
+            submissionDate={request.submission_date}
+            items={items}
+            attachments={attachments}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle>Informasi Pengajuan</CardTitle>
@@ -133,11 +139,11 @@ export default async function RequestDetailPage({
                       <span className="flex size-9 items-center justify-center rounded-lg bg-card text-muted-foreground">
                         <Icon className="size-4" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <dt className="text-xs text-muted-foreground">
                           {item.label}
                         </dt>
-                        <dd className="text-sm font-medium text-foreground">
+                        <dd className="break-words text-sm font-medium text-foreground">
                           {item.value}
                         </dd>
                       </div>
@@ -153,7 +159,7 @@ export default async function RequestDetailPage({
               <CardTitle>Catatan</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-line text-sm text-muted-foreground">
+              <p className="whitespace-pre-line break-words text-sm text-muted-foreground">
                 {request.notes?.trim() ? request.notes : "Tidak ada catatan."}
               </p>
             </CardContent>
@@ -161,12 +167,12 @@ export default async function RequestDetailPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>Lampiran</CardTitle>
+              <CardTitle>Lampiran Umum</CardTitle>
             </CardHeader>
             <CardContent>
               <AttachmentManager
                 requestId={request.id}
-                attachments={attachments}
+                attachments={generalAttachments}
               />
             </CardContent>
           </Card>

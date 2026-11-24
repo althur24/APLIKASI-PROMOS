@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ChevronRight, Tags, UserCog, Users } from "lucide-react";
+import { ChevronRight, FolderKanban, Tags, UserCog, Users } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -29,9 +29,15 @@ export default async function SettingsPage() {
         ]
       : []),
     {
+      href: "/settings/projects",
+      title: "Proyek",
+      description: "Master data proyek untuk pengajuan dan filter laporan.",
+      icon: FolderKanban,
+    },
+    {
       href: "/settings/categories",
       title: "Kategori",
-      description: "Kelola kategori pengajuan yang dipakai seluruh tim.",
+      description: "Kelola kategori item pengajuan yang dipakai seluruh tim.",
       icon: Tags,
     },
   ];
@@ -44,7 +50,7 @@ export default async function SettingsPage() {
       />
 
       <Card>
-        <CardContent className="flex items-center gap-4 p-5 sm:p-6">
+        <CardContent className="flex items-center gap-3 p-4 sm:gap-4 sm:p-6">
           <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <UserCog className="size-6" />
           </span>

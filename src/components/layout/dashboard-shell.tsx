@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -15,6 +15,15 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [drawerOpen]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -31,7 +40,7 @@ export function DashboardShell({
             className="absolute inset-0 bg-[#0b1220]/40 backdrop-blur-[1px]"
             onClick={() => setDrawerOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85%] border-r border-border bg-sidebar shadow-xl">
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85%] border-r border-border bg-sidebar pb-[env(safe-area-inset-bottom)] shadow-xl">
             <AppSidebar
               role={profile.role}
               onNavigate={() => setDrawerOpen(false)}
@@ -46,7 +55,7 @@ export function DashboardShell({
           profile={profile}
           onMenuClick={() => setDrawerOpen(true)}
         />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="flex-1 px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
           <div className="mx-auto w-full max-w-[1440px]">{children}</div>
         </main>
       </div>

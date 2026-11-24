@@ -1,6 +1,6 @@
 import type { ActivityFilters } from "@/lib/data/activity";
 import type { RequestFilters } from "@/lib/data/requests";
-import type { RequestStatus } from "@/types";
+import type { RequestStatus, RequestType } from "@/types";
 
 export type SearchParamsInput = Record<
   string,
@@ -17,21 +17,37 @@ export function parseRequestFilters(
   defaults?: Partial<RequestFilters>,
 ): RequestFilters {
   const status = firstValue(searchParams.status);
+  const type = firstValue(searchParams.type);
   const page = Number(firstValue(searchParams.page) ?? "1");
+
+  const validStatuses = ["submitted", "partial", "paid", "realized"];
 
   return {
     search: firstValue(searchParams.q) || undefined,
+    type:
+      type === "pengajuan" || type === "reimbursement"
+        ? (type as RequestType)
+        : defaults?.type,
     status:
-      status === "submitted" || status === "paid"
+      status && validStatuses.includes(status)
         ? (status as RequestStatus)
         : defaults?.status,
-    categoryId: firstValue(searchParams.category) || undefined,
+    projectId: firstValue(searchParams.project) || undefined,
     createdBy: firstValue(searchParams.pengaju) || undefined,
     from: firstValue(searchParams.from) || undefined,
     to: firstValue(searchParams.to) || undefined,
     sort: firstValue(searchParams.sort) || defaults?.sort,
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: defaults?.pageSize ?? 10,
+  };
+}
+
+export function parseProcessingFilters(searchParams: SearchParamsInput) {
+  const page = Number(firstValue(searchParams.page) ?? "1");
+  return {
+    search: firstValue(searchParams.q) || undefined,
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    pageSize: 10,
   };
 }
 

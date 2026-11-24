@@ -63,7 +63,7 @@ export function RecentActivity({ rows }: { rows: ActivityRow[] }) {
                         </span>{" "}
                         <span className="text-muted-foreground">{phrase}</span>
                       </p>
-                      <span className="shrink-0 whitespace-nowrap pt-0.5 text-[11px] text-muted-foreground">
+                      <span className="shrink-0 whitespace-nowrap pt-0.5 text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(activity.created_at), {
                           addSuffix: true,
                           locale: localeId,

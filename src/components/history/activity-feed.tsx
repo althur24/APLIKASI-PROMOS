@@ -52,7 +52,7 @@ export function ActivityFeed({ rows }: { rows: ActivityRow[] }) {
 
   return (
     <Card>
-      <CardContent className="space-y-6 p-5 sm:p-6">
+      <CardContent className="space-y-5 p-4 sm:space-y-6 sm:p-6">
         {groups.map((group) => (
           <section key={group.key}>
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

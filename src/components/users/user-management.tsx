@@ -2,7 +2,7 @@
 
 import { KeyRound, Loader2, Pencil, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 
 import {
   createUser,
@@ -129,6 +129,7 @@ function CreateUserDialog() {
 }
 
 function EditUserDialog({ profile }: { profile: Profile }) {
+  const uid = useId();
   const [open, setOpen] = useState(false);
   const [isActive, setIsActive] = useState(profile.is_active);
   const router = useRouter();
@@ -157,9 +158,9 @@ function EditUserDialog({ profile }: { profile: Profile }) {
         <form action={submit} className="space-y-4">
           <input type="hidden" name="id" value={profile.id} />
           <div className="space-y-1.5">
-            <Label htmlFor={`full_name_${profile.id}`}>Nama Lengkap</Label>
+            <Label htmlFor={`full_name_${uid}`}>Nama Lengkap</Label>
             <Input
-              id={`full_name_${profile.id}`}
+              id={`full_name_${uid}`}
               name="full_name"
               defaultValue={profile.full_name}
               required
@@ -167,9 +168,9 @@ function EditUserDialog({ profile }: { profile: Profile }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor={`role_${profile.id}`}>Role</Label>
+              <Label htmlFor={`role_${uid}`}>Role</Label>
               <Select
-                id={`role_${profile.id}`}
+                id={`role_${uid}`}
                 name="role"
                 defaultValue={profile.role}
               >
@@ -212,6 +213,7 @@ function EditUserDialog({ profile }: { profile: Profile }) {
 }
 
 function ResetPasswordDialog({ profile }: { profile: Profile }) {
+  const uid = useId();
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { submit, pending, state } = useServerAction(resetUserPassword, () => {
@@ -237,9 +239,9 @@ function ResetPasswordDialog({ profile }: { profile: Profile }) {
         <form action={submit} className="space-y-4">
           <input type="hidden" name="id" value={profile.id} />
           <div className="space-y-1.5">
-            <Label htmlFor={`password_${profile.id}`}>Password Baru</Label>
+            <Label htmlFor={`password_${uid}`}>Password Baru</Label>
             <Input
-              id={`password_${profile.id}`}
+              id={`password_${uid}`}
               name="password"
               type="text"
               required
@@ -303,14 +305,14 @@ export function UserManagementTable({
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {profiles.length} pengguna terdaftar
         </p>
         <CreateUserDialog />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="hidden overflow-hidden rounded-2xl border border-border bg-card md:block">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -367,6 +369,51 @@ export function UserManagementTable({
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {profiles.map((profile) => (
+          <div
+            key={profile.id}
+            className="rounded-2xl border border-border bg-card p-4"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                {initials(profile.full_name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {profile.full_name}
+                  </p>
+                  <Badge
+                    variant={profile.role === "admin" ? "default" : "secondary"}
+                  >
+                    {ROLE_LABELS[profile.role]}
+                  </Badge>
+                  {profile.id === currentAdminId ? (
+                    <span className="text-xs text-muted-foreground">
+                      (Anda)
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {profile.email}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Dibuat {formatDate(profile.created_at)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
+              <ActiveToggle profile={profile} />
+              <div className="flex items-center gap-1">
+                <EditUserDialog profile={profile} />
+                <ResetPasswordDialog profile={profile} />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

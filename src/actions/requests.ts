@@ -7,16 +7,12 @@ import type { ActionState } from "@/actions/types";
 import { requireUser } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { ATTACHMENTS_BUCKET } from "@/lib/supabase/env";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
+import { ITEM_STATUS_LABELS } from "@/types";
 import {
-  STATUS_LABELS,
-  type ActivityChange,
-  type ActivitySnapshotItem,
-  type RequestStatus,
-} from "@/types";
-import {
+  payItemSchema,
+  realizeItemSchema,
   requestFormSchema,
-  statusUpdateSchema,
 } from "@/lib/validations/request";
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
@@ -31,29 +27,6 @@ const ALLOWED_TYPES = [
   "application/vnd.ms-excel",
 ];
 
-const TRACKED_FIELDS = [
-  "title",
-  "category_id",
-  "amount",
-  "submission_date",
-  "status",
-  "disbursement_date",
-  "notes",
-] as const;
-
-type TrackedField = (typeof TRACKED_FIELDS)[number];
-type CategoryMap = Map<string, string>;
-
-const FIELD_LABELS: Record<TrackedField, string> = {
-  title: "Nama Pengajuan",
-  category_id: "Kategori",
-  amount: "Nominal",
-  submission_date: "Tanggal Pengajuan",
-  status: "Status",
-  disbursement_date: "Tanggal Pencairan",
-  notes: "Catatan",
-};
-
 function revalidateRequests() {
   revalidatePath("/dashboard");
   revalidatePath("/requests");
@@ -61,6 +34,8 @@ function revalidateRequests() {
   revalidatePath("/paid");
   revalidatePath("/reports");
   revalidatePath("/history");
+  revalidatePath("/disbursement");
+  revalidatePath("/realization");
 }
 
 async function logActivity(
@@ -78,78 +53,57 @@ async function logActivity(
   });
 }
 
-function truncate(value: string, max = 80) {
-  return value.length > max ? `${value.slice(0, max)}…` : value;
-}
-
-function formatFieldValue(
-  field: TrackedField,
-  value: unknown,
-  categories: CategoryMap,
-): string | null {
-  if (value === null || value === undefined || value === "") return null;
-
-  switch (field) {
-    case "amount":
-      return formatCurrency(Number(value));
-    case "category_id":
-      return categories.get(String(value)) ?? "—";
-    case "status":
-      return STATUS_LABELS[value as RequestStatus] ?? String(value);
-    case "submission_date":
-    case "disbursement_date":
-      return formatDate(String(value));
-    case "notes":
-      return truncate(String(value));
-    default:
-      return String(value);
+function parseItems(raw: FormDataEntryValue | null) {
+  if (typeof raw !== "string" || raw.length === 0) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
 }
 
-function buildChanges(
-  before: Record<string, unknown>,
-  after: Record<string, unknown>,
-  categories: CategoryMap,
-  fields: readonly TrackedField[] = TRACKED_FIELDS,
-): ActivityChange[] {
-  const changes: ActivityChange[] = [];
-
-  for (const field of fields) {
-    const previous = before[field] ?? null;
-    const next = after[field] ?? null;
-
-    const same =
-      field === "amount"
-        ? Number(previous ?? 0) === Number(next ?? 0)
-        : String(previous ?? "") === String(next ?? "");
-
-    if (same) continue;
-
-    changes.push({
-      field,
-      label: FIELD_LABELS[field],
-      from: formatFieldValue(field, previous, categories),
-      to: formatFieldValue(field, next, categories),
-    });
+function validateFiles(files: File[]) {
+  for (const file of files) {
+    if (file.size > MAX_FILE_SIZE) {
+      return { error: `File ${file.name} melebihi batas 8 MB.` };
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return { error: `Tipe file ${file.name} tidak diizinkan.` };
+    }
   }
-
-  return changes;
+  return null;
 }
 
-function buildSnapshot(
-  values: Record<string, unknown>,
-  categories: CategoryMap,
-): ActivitySnapshotItem[] {
-  return TRACKED_FIELDS.map((field) => ({
-    label: FIELD_LABELS[field],
-    value: formatFieldValue(field, values[field], categories),
-  })).filter((item): item is ActivitySnapshotItem => Boolean(item.value));
-}
-
-async function getCategoryMap(): Promise<CategoryMap> {
+async function uploadFiles(
+  requestId: string,
+  itemId: string | null,
+  purpose: "receipt" | "realization" | "general",
+  files: File[],
+) {
   const supabase = await createClient();
-  const { data } = await supabase.from("categories").select("id, name");
-  return new Map((data ?? []).map((category) => [category.id, category.name]));
+  for (const file of files) {
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `${requestId}/${itemId ?? "general"}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from(ATTACHMENTS_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) return uploadError.message;
+
+    const { error: insertError } = await supabase
+      .from("request_attachments")
+      .insert({
+        request_id: requestId,
+        item_id: itemId,
+        purpose,
+        file_name: file.name,
+        storage_path: path,
+        file_size: file.size,
+        mime_type: file.type,
+      });
+    if (insertError) return insertError.message;
+  }
+  return null;
 }
 
 export async function createRequest(
@@ -159,13 +113,12 @@ export async function createRequest(
   const profile = await requireUser();
 
   const parsed = requestFormSchema.safeParse({
+    type: formData.get("type") || "pengajuan",
     title: formData.get("title"),
-    category_id: formData.get("category_id"),
-    amount: formData.get("amount"),
+    project_id: formData.get("project_id"),
     submission_date: formData.get("submission_date"),
-    status: formData.get("status") || "submitted",
-    disbursement_date: formData.get("disbursement_date") || null,
     notes: formData.get("notes") || null,
+    items: parseItems(formData.get("items")),
   });
 
   if (!parsed.success) {
@@ -175,38 +128,79 @@ export async function createRequest(
     };
   }
 
-  const values = {
-    title: parsed.data.title,
-    category_id: parsed.data.category_id,
-    amount: parsed.data.amount,
-    submission_date: parsed.data.submission_date,
-    status: parsed.data.status,
-    disbursement_date:
-      parsed.data.status === "paid" ? parsed.data.disbursement_date : null,
-    notes: parsed.data.notes ?? null,
-  };
-
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data: request, error } = await supabase
     .from("expense_requests")
-    .insert({ ...values, created_by: profile.id })
+    .insert({
+      type: parsed.data.type,
+      title: parsed.data.title,
+      project_id: parsed.data.project_id,
+      submission_date: parsed.data.submission_date,
+      notes: parsed.data.notes ?? null,
+      created_by: profile.id,
+    })
     .select("id, request_number")
     .single();
 
-  if (error || !data) {
+  if (error || !request) {
     return { error: error?.message ?? "Gagal menyimpan pengajuan." };
   }
 
-  const categories = await getCategoryMap();
-  const snapshot = buildSnapshot(values, categories);
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from("expense_request_items")
+    .insert(
+      parsed.data.items.map((item, index) => ({
+        request_id: request.id,
+        name: item.name,
+        category_id: item.category_id,
+        amount: item.amount,
+        sort_order: index,
+      })),
+    )
+    .select("id, name, amount, sort_order");
 
-  await logActivity(data.id, "created", `Pengajuan ${data.request_number} dibuat`, {
-    request_number: data.request_number,
-    snapshot,
-  });
+  if (itemsError || !insertedItems) {
+    return { error: itemsError?.message ?? "Gagal menyimpan item." };
+  }
+
+  if (parsed.data.type === "reimbursement") {
+    for (const item of insertedItems) {
+      const files = formData
+        .getAll(`receipt_${item.sort_order}`)
+        .filter((file): file is File => file instanceof File && file.size > 0);
+      const invalid = validateFiles(files);
+      if (invalid) return invalid;
+      if (files.length > 0) {
+        const uploadError = await uploadFiles(
+          request.id,
+          item.id,
+          "receipt",
+          files,
+        );
+        if (uploadError) return { error: uploadError };
+      }
+    }
+  }
+
+  const total = parsed.data.items.reduce((sum, item) => sum + item.amount, 0);
+
+  await logActivity(
+    request.id,
+    "created",
+    `Pengajuan ${request.request_number} dibuat (${parsed.data.items.length} item)`,
+    {
+      request_number: request.request_number,
+      item_count: parsed.data.items.length,
+      total,
+      snapshot: parsed.data.items.map((item) => ({
+        label: item.name,
+        value: formatCurrency(item.amount),
+      })),
+    },
+  );
 
   revalidateRequests();
-  redirect(`/requests/${data.id}`);
+  redirect(`/requests/${request.id}`);
 }
 
 export async function updateRequest(
@@ -217,13 +211,12 @@ export async function updateRequest(
   const id = String(formData.get("id") ?? "");
 
   const parsed = requestFormSchema.safeParse({
+    type: formData.get("type") || "pengajuan",
     title: formData.get("title"),
-    category_id: formData.get("category_id"),
-    amount: formData.get("amount"),
+    project_id: formData.get("project_id"),
     submission_date: formData.get("submission_date"),
-    status: formData.get("status") || "submitted",
-    disbursement_date: formData.get("disbursement_date") || null,
     notes: formData.get("notes") || null,
+    items: parseItems(formData.get("items")),
   });
 
   if (!parsed.success) {
@@ -233,145 +226,264 @@ export async function updateRequest(
     };
   }
 
-  const values = {
-    title: parsed.data.title,
-    category_id: parsed.data.category_id,
-    amount: parsed.data.amount,
-    submission_date: parsed.data.submission_date,
-    status: parsed.data.status,
-    disbursement_date:
-      parsed.data.status === "paid" ? parsed.data.disbursement_date : null,
-    notes: parsed.data.notes ?? null,
-  };
-
   const supabase = await createClient();
   const { data: existing } = await supabase
     .from("expense_requests")
-    .select(
-      "request_number, title, category_id, amount, submission_date, status, disbursement_date, notes",
-    )
+    .select("id, request_number, title, project_id, submission_date, notes")
     .eq("id", id)
     .maybeSingle();
 
+  if (!existing) {
+    return { error: "Pengajuan tidak ditemukan." };
+  }
+
+  const { data: existingItems } = await supabase
+    .from("expense_request_items")
+    .select("id, status, name, category_id, amount")
+    .eq("request_id", id);
+
+  const { count: attachmentCount } = await supabase
+    .from("request_attachments")
+    .select("id", { count: "exact", head: true })
+    .eq("request_id", id);
+
+  const hasProgress =
+    (existingItems ?? []).some((item) => item.status !== "submitted") ||
+    (attachmentCount ?? 0) > 0;
+
   const { error } = await supabase
     .from("expense_requests")
-    .update(values)
+    .update({
+      title: parsed.data.title,
+      project_id: parsed.data.project_id,
+      submission_date: parsed.data.submission_date,
+      notes: parsed.data.notes ?? null,
+    })
     .eq("id", id);
 
-  if (error) {
-    return { error: error.message };
+  if (error) return { error: error.message };
+
+  if (!hasProgress) {
+    await supabase.from("expense_request_items").delete().eq("request_id", id);
+    const { error: itemsError } = await supabase
+      .from("expense_request_items")
+      .insert(
+        parsed.data.items.map((item, index) => ({
+          request_id: id,
+          name: item.name,
+          category_id: item.category_id,
+          amount: item.amount,
+          sort_order: index,
+        })),
+      );
+    if (itemsError) return { error: itemsError.message };
   }
 
-  const categories = await getCategoryMap();
-  const changes = existing
-    ? buildChanges(
-        existing as unknown as Record<string, unknown>,
-        values as unknown as Record<string, unknown>,
-        categories,
-      )
-    : [];
-
-  if (changes.length > 0 || !existing) {
-    const statusChanged = existing
-      ? existing.status !== values.status
-      : false;
-    await logActivity(
-      id,
-      statusChanged ? "status_changed" : "updated",
-      statusChanged
-        ? `Status ${existing?.request_number ?? ""} diubah menjadi ${STATUS_LABELS[values.status]}`
-        : `Pengajuan ${existing?.request_number ?? ""} diperbarui`,
-      { request_number: existing?.request_number, changes },
-    );
-  }
+  await logActivity(
+    id,
+    "updated",
+    `Pengajuan ${existing.request_number} diperbarui`,
+    {
+      request_number: existing.request_number,
+      item_count: parsed.data.items.length,
+      items_locked: hasProgress,
+    },
+  );
 
   revalidateRequests();
   revalidatePath(`/requests/${id}`);
   redirect(`/requests/${id}`);
 }
 
-export async function updateRequestStatus(
+export async function payItem(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
 
-  const parsed = statusUpdateSchema.safeParse({
-    id: formData.get("id"),
-    status: formData.get("status"),
-    disbursement_date: formData.get("disbursement_date") || null,
+  const parsed = payItemSchema.safeParse({
+    item_id: formData.get("item_id"),
+    disbursement_date: formData.get("disbursement_date"),
     notes: formData.get("notes") || null,
   });
 
   if (!parsed.success) {
     return {
       fieldErrors: parsed.error.flatten().fieldErrors,
-      error: "Periksa kembali data status.",
+      error: "Periksa kembali data pencairan.",
     };
   }
 
   const supabase = await createClient();
-  const { data: existing } = await supabase
+  const { data: item } = await supabase
+    .from("expense_request_items")
+    .select("id, name, status, request_id")
+    .eq("id", parsed.data.item_id)
+    .maybeSingle();
+
+  if (!item) return { error: "Item tidak ditemukan." };
+  if (item.status !== "submitted") {
+    return { error: "Item ini sudah diproses." };
+  }
+
+  const { data: request } = await supabase
     .from("expense_requests")
-    .select(
-      "request_number, submission_date, status, disbursement_date, notes",
-    )
-    .eq("id", parsed.data.id)
+    .select("request_number, submission_date")
+    .eq("id", item.request_id)
     .maybeSingle();
 
   if (
-    existing &&
-    parsed.data.status === "paid" &&
-    parsed.data.disbursement_date
+    request &&
+    parsed.data.disbursement_date < request.submission_date
   ) {
-    if (parsed.data.disbursement_date < existing.submission_date) {
-      return {
-        fieldErrors: {
-          disbursement_date: [
-            "Tanggal pencairan tidak boleh sebelum tanggal pengajuan",
-          ],
-        },
-        error: "Tanggal pencairan tidak valid.",
-      };
-    }
+    return {
+      fieldErrors: {
+        disbursement_date: [
+          "Tanggal pencairan tidak boleh sebelum tanggal pengajuan",
+        ],
+      },
+      error: "Tanggal pencairan tidak valid.",
+    };
   }
-
-  const status = parsed.data.status as RequestStatus;
-  const values = {
-    status,
-    disbursement_date: status === "paid" ? parsed.data.disbursement_date : null,
-    notes: parsed.data.notes ?? existing?.notes ?? null,
-  };
 
   const { error } = await supabase
-    .from("expense_requests")
-    .update(values)
-    .eq("id", parsed.data.id);
+    .from("expense_request_items")
+    .update({
+      status: "paid",
+      disbursement_date: parsed.data.disbursement_date,
+    })
+    .eq("id", item.id);
 
-  if (error) {
-    return { error: error.message };
-  }
-
-  const changes = existing
-    ? buildChanges(
-        existing as unknown as Record<string, unknown>,
-        values as unknown as Record<string, unknown>,
-        new Map(),
-        ["status", "disbursement_date", "notes"],
-      )
-    : [];
+  if (error) return { error: error.message };
 
   await logActivity(
-    parsed.data.id,
+    item.request_id,
     "status_changed",
-    `Status ${existing?.request_number ?? ""} diubah menjadi ${STATUS_LABELS[status]}`,
-    { request_number: existing?.request_number, changes },
+    `Item ${item.name} pada ${request?.request_number ?? ""} sudah cair`,
+    {
+      request_number: request?.request_number,
+      item_name: item.name,
+      changes: [
+        {
+          field: "status",
+          label: "Status",
+          from: ITEM_STATUS_LABELS.submitted,
+          to: ITEM_STATUS_LABELS.paid,
+        },
+        {
+          field: "disbursement_date",
+          label: "Tanggal Pencairan",
+          from: null,
+          to: parsed.data.disbursement_date,
+        },
+      ],
+      ...(parsed.data.notes ? { note: parsed.data.notes } : {}),
+    },
   );
 
   revalidateRequests();
-  revalidatePath(`/requests/${parsed.data.id}`);
+  revalidatePath(`/requests/${item.request_id}`);
+  return { success: `Item ${item.name} ditandai sudah cair.` };
+}
 
-  return { success: `Status berhasil diubah menjadi ${STATUS_LABELS[status]}.` };
+export async function realizeItem(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+
+  const parsed = realizeItemSchema.safeParse({
+    item_id: formData.get("item_id"),
+    realized_date: formData.get("realized_date"),
+    notes: formData.get("notes") || null,
+  });
+
+  if (!parsed.success) {
+    return {
+      fieldErrors: parsed.error.flatten().fieldErrors,
+      error: "Periksa kembali data realisasi.",
+    };
+  }
+
+  const files = formData
+    .getAll("files")
+    .filter((file): file is File => file instanceof File && file.size > 0);
+
+  if (files.length === 0) {
+    return { error: "Unggah minimal satu foto realisasi." };
+  }
+
+  const invalid = validateFiles(files);
+  if (invalid) return invalid;
+
+  const supabase = await createClient();
+  const { data: item } = await supabase
+    .from("expense_request_items")
+    .select("id, name, status, request_id")
+    .eq("id", parsed.data.item_id)
+    .maybeSingle();
+
+  if (!item) return { error: "Item tidak ditemukan." };
+  if (item.status !== "paid") {
+    return { error: "Item harus sudah cair sebelum direalisasikan." };
+  }
+
+  const { data: request } = await supabase
+    .from("expense_requests")
+    .select("request_number, type")
+    .eq("id", item.request_id)
+    .maybeSingle();
+
+  if (request?.type === "reimbursement") {
+    return { error: "Reimbursement tidak memerlukan realisasi." };
+  }
+
+  const uploadError = await uploadFiles(
+    item.request_id,
+    item.id,
+    "realization",
+    files,
+  );
+  if (uploadError) return { error: uploadError };
+
+  const { error } = await supabase
+    .from("expense_request_items")
+    .update({
+      status: "realized",
+      realized_date: parsed.data.realized_date,
+    })
+    .eq("id", item.id);
+
+  if (error) return { error: error.message };
+
+  await logActivity(
+    item.request_id,
+    "status_changed",
+    `Item ${item.name} pada ${request?.request_number ?? ""} sudah realisasi`,
+    {
+      request_number: request?.request_number,
+      item_name: item.name,
+      files: files.map((file) => file.name),
+      changes: [
+        {
+          field: "status",
+          label: "Status",
+          from: ITEM_STATUS_LABELS.paid,
+          to: ITEM_STATUS_LABELS.realized,
+        },
+        {
+          field: "realized_date",
+          label: "Tanggal Realisasi",
+          from: null,
+          to: parsed.data.realized_date,
+        },
+      ],
+    },
+  );
+
+  revalidateRequests();
+  revalidatePath(`/requests/${item.request_id}`);
+  return { success: `Item ${item.name} ditandai sudah realisasi.` };
 }
 
 export async function softDeleteRequest(formData: FormData) {
@@ -406,57 +518,35 @@ export async function uploadAttachments(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const profile = await requireUser();
+  await requireUser();
   const requestId = String(formData.get("request_id") ?? "");
-  const files = formData.getAll("files").filter((f): f is File => f instanceof File);
+  const itemIdRaw = String(formData.get("item_id") ?? "");
+  const itemId = itemIdRaw.length > 0 ? itemIdRaw : null;
+  const purposeRaw = String(formData.get("purpose") ?? "general");
+  const purpose =
+    purposeRaw === "receipt" || purposeRaw === "realization"
+      ? purposeRaw
+      : "general";
 
-  if (!requestId) {
-    return { error: "Pengajuan tidak ditemukan." };
-  }
+  const files = formData
+    .getAll("files")
+    .filter((file): file is File => file instanceof File);
+
+  if (!requestId) return { error: "Pengajuan tidak ditemukan." };
 
   const validFiles = files.filter((file) => file.size > 0);
-  if (validFiles.length === 0) {
-    return { error: "Pilih minimal satu file." };
-  }
+  if (validFiles.length === 0) return { error: "Pilih minimal satu file." };
 
-  for (const file of validFiles) {
-    if (file.size > MAX_FILE_SIZE) {
-      return { error: `File ${file.name} melebihi batas 8 MB.` };
-    }
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return { error: `Tipe file ${file.name} tidak diizinkan.` };
-    }
-  }
+  const invalid = validateFiles(validFiles);
+  if (invalid) return invalid;
 
-  const supabase = await createClient();
-
-  for (const file of validFiles) {
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-    const path = `${requestId}/${crypto.randomUUID()}-${safeName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(ATTACHMENTS_BUCKET)
-      .upload(path, file, { contentType: file.type, upsert: false });
-
-    if (uploadError) {
-      return { error: `Gagal mengunggah ${file.name}: ${uploadError.message}` };
-    }
-
-    const { error: insertError } = await supabase
-      .from("request_attachments")
-      .insert({
-        request_id: requestId,
-        file_name: file.name,
-        storage_path: path,
-        file_size: file.size,
-        mime_type: file.type,
-        uploaded_by: profile.id,
-      });
-
-    if (insertError) {
-      return { error: insertError.message };
-    }
-  }
+  const uploadError = await uploadFiles(
+    requestId,
+    itemId,
+    purpose,
+    validFiles,
+  );
+  if (uploadError) return { error: uploadError };
 
   await logActivity(
     requestId,

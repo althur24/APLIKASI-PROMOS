@@ -14,7 +14,12 @@ export function ActivityChanges({
   const snapshot = metadata.snapshot ?? [];
   const files = metadata.files ?? [];
 
-  if (changes.length === 0 && snapshot.length === 0 && files.length === 0) {
+  if (
+    changes.length === 0 &&
+    snapshot.length === 0 &&
+    files.length === 0 &&
+    !metadata.item_name
+  ) {
     return null;
   }
 
@@ -25,6 +30,12 @@ export function ActivityChanges({
         className,
       )}
     >
+      {metadata.item_name ? (
+        <p className="text-[13px] leading-5 text-muted-foreground">
+          Item: <span className="font-medium text-foreground">{metadata.item_name}</span>
+        </p>
+      ) : null}
+
       {changes.length > 0 ? (
         <ul className="space-y-1">
           {changes.map((change) => (

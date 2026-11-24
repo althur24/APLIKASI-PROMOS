@@ -7,17 +7,17 @@ import { RequestFilters } from "@/components/requests/request-filters";
 import { RequestTable } from "@/components/requests/request-table";
 import { Button } from "@/components/ui/button";
 import type { PagedRequests } from "@/lib/data/requests";
-import type { Category, Profile } from "@/types";
+import type { Profile, Project } from "@/types";
 
 export function RequestsSection({
   data,
-  categories,
+  projects,
   profiles,
   showStatus = true,
   emptyHint,
 }: {
   data: PagedRequests;
-  categories: Category[];
+  projects: Project[];
   profiles: Profile[];
   showStatus?: boolean;
   emptyHint?: string;
@@ -25,7 +25,7 @@ export function RequestsSection({
   return (
     <div className="space-y-4">
       <RequestFilters
-        categories={categories}
+        projects={projects}
         profiles={profiles}
         showStatus={showStatus}
         lockedStatus={!showStatus}
